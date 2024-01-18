@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Simple Form</title>
+    <link rel="stylesheet" type="text/css" href="styles.css">
+</head>
+
+<body>
+    <canvas id="canvas"></canvas>
+    <div class="form-container">
+        <input type="text" id="client_id" placeholder="Spotify Client ID">
+        <input type="password" id="client_secret" placeholder="Spotify Client Secret"
+            title="Shhhhh, don't share this code">
+        <input type="text" id="playlist_id" placeholder="Spotify Playlist ID"
+            title="You can find this in the url for the playlist">
+        <div class="box_and_git">
+            <div class="checkbox_container">
+                <input type="checkbox" id="remember_me">
+                <label for="remember_me" id="remember_me_text">Remember Me</label>
+            </div>
+            <a href="https://github.com/AlgorithmAiden/Spotify-Better-Playlist-Song-Recomender" class="git_link">
+                <code class="git_text">GITHUB</code>
+            </a>
+        </div>
+        <button id="scan_button"
+            title="If 'remember me' is checked, then the scans will be saved for better results later">Scan</button>
+    </div>
+    <div id="tracks_div"> <!--this is where all the tracks will be placed-->
+    </div>
+    <script src="script.js"></script>
+</body>
+
+</html>
