@@ -29,7 +29,7 @@ function resize() {
     console.log(width, height)
 }
 
-new MutationObserver(resize).observe(document, { childList: true, subtree: true });
+document.addEventListener('scroll', resize)
 
 window.onresize = resize
 
@@ -112,6 +112,7 @@ if (localStorage.getItem('remember_me')) {
     client_secret_element.value = localStorage.getItem('client_secret')
     playlist_id_element.value = localStorage.getItem('playlist_id')
     hidelist = localStorage.getItem('hidelist')
+    if (typeof hidelist != 'object') hidelist = []
     updateCheckboxText()
 }
 
@@ -151,58 +152,37 @@ document.getElementById('scan_button').addEventListener('click', function () {
         errorifyScanButton('Missing spotify playlist ID')
         return
     }
-    addTrack('4uLU6hMCjMI75M1A2tKUQC', Math.round(Math.random() * 100), [['Never gonna Give You Up', 'Rick Astley', '4uLU6hMCjMI75M1A2tKUQC']])
+    addTrack('4uLU6hMCjMI75M1A2tKUQC', Math.round(Math.random() * 100), [['Never gonna Give You Up', 'Rick Astley', '4uLU6hMCjMI75M1A2tKUQC'], ['Never gonna Give You Up', 'Rick Astley', '4uLU6hMCjMI75M1A2tKUQC'], ['Never gonna Give You Up', 'Rick Astley', '4uLU6hMCjMI75M1A2tKUQC'], ['Never gonna Give You Up', 'Rick Astley', '4uLU6hMCjMI75M1A2tKUQC'], ['Never gonna Give You Up', 'Rick Astley', '4uLU6hMCjMI75M1A2tKUQC']])
 })
 
 function addTrack(trackId, trackRating, stats = []) {
-    let trackDiv = document.createElement('div')
-    trackDiv.classList.add('track_div')
-    trackDiv.innerHTML = `
-    <span> %${trackRating} match </span>
-    <div class="content">
-    <button id="track_button" title="If 'remember me' is off the hidelist is reset on page load">Hide</button>
-    <iframe src="https://open.spotify.com/embed/track/4uLU6hMCjMI75M1A2tKUQC" width="300" height="80" frameborder="0" allowtransparency="true" allow="encrypted-media"></iframe>
+    let shell = document.createElement('div')
+    shell.classList.add('shell')
+    shell.innerHTML = `
+    <div class=track_div>
+        <span> %${trackRating} match </span>
+        <div class="content">
+            <button id="track_button" title="If 'remember me' is off the hidelist is reset on page load">Hide</button>
+            <iframe src="https://open.spotify.com/embed/track/4uLU6hMCjMI75M1A2tKUQC" width="300" height="80" frameborder="0" allowtransparency="true" allow="encrypted-media"></iframe>
+        </div>
     </div>
     `
-    document.getElementById('tracks_div').appendChild(trackDiv)
-    activateBetterTitles(trackDiv.querySelector('button'))
-    trackDiv.querySelector('iframe').addEventListener('load', function () { this.style.opacity = 1 })
-    setTimeout(() => trackDiv.classList.add('activated'), 100)
+    document.getElementById('tracks_div').appendChild(shell)
+    activateBetterTitles(shell.querySelector('button'))
+    shell.querySelector('iframe').addEventListener('load', function () { this.style.opacity = 1 })
+    setTimeout(() => shell.classList.add('show'), 100)
 
-    trackDiv.querySelector('button').addEventListener('click', () => {
+    shell.querySelector('button').addEventListener('click', () => {
 
-        hidelist.push(trackId)
-        if (remember_me_element.checked)
-            localStorage.setItem('hidelist', hidelist)
-
-        document.querySelectorAll('.custom-tooltip').forEach(tooltip => {
-            tooltip.classList.remove('show')
-            setTimeout(() => tooltip.remove(), 500)
-        })
-        trackDiv.classList.add('hide')
-        function shift(element, first) {
-            if (first)
-                element.classList.add('small_shift')
-            else
-                element.classList.add('shift')
-            setTimeout(() => {
-                const originTransition = element.style.transition
-                element.style.transition = 'transform 0s ease'
-                if (first)
-                    element.classList.remove('small_shift')
-                else
-                    element.classList.remove('shift')
-                setTimeout(() => element.style.transition = originTransition, 100)
-
-            }, 2000)
-            if (element.nextElementSibling != null && !element.nextElementSibling.classList.contains('hide'))
-                shift(element.nextElementSibling, first)
+        if (!hidelist.includes(trackId)) {
+            hidelist.push(trackId)
+            console.log(hidelist)
+            if (remember_me_element.checked)
+                localStorage.setItem('hidelist', hidelist)
         }
-        if (trackDiv.nextElementSibling != null && !trackDiv.nextElementSibling.classList.contains('hide'))
-            shift(trackDiv.nextElementSibling, trackDiv.previousElementSibling == null)
-        setTimeout(() => {
-            document.getElementById('tracks_div').removeChild(trackDiv)
-        }, 2000)
+
+        shell.classList.remove('show')
+        setTimeout(() => shell.remove(), 2000)
     })
 
     let enter_handle
@@ -226,14 +206,16 @@ function addTrack(trackId, trackRating, stats = []) {
             <div class="recommend_list_subtext">${stat[1]}</div>
             `
             tooltip.appendChild(shell)
-            shell.addEventListener('click',e=>{
-                window.location.href=`https://open.spotify.com/track/${stat[2]}`
+            shell.addEventListener('click', e => {
+                window.open(`https://open.spotify.com/track/${stat[2]}`, '_blank')
             })
         })
 
         let rect = this.getBoundingClientRect()
-        tooltip.style.bottom = (window.innerHeight - rect.top - window.scrollY + 15) + 'px';
+        tooltip.style.top = rect.bottom + window.scrollY + 15 + 'px'
         tooltip.style.display = 'block'
+
+        console.log(tooltip.getBoundingClientRect().top, window.scrollY)
 
         tooltip.addEventListener('mouseenter', enter)
         tooltip.addEventListener('mouseleave', leave)
@@ -261,13 +243,14 @@ function addTrack(trackId, trackRating, stats = []) {
         }, 100)
     }
 
-    trackDiv.querySelector('span').addEventListener('mouseenter', enter)
-    trackDiv.querySelector('span').addEventListener('mouseleave', leave)
+    shell.querySelector('span').addEventListener('mouseenter', enter)
+    shell.querySelector('span').addEventListener('mouseleave', leave)
 }
+
+// const
 
 // const axios = require('axios')
 // const qs = require('qs')
-// const fs = require('fs')
 
 // const SPOTIFY_CLIENT_ID = ''
 // const SPOTIFY_CLIENT_SECRET = ''
