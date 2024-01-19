@@ -5,7 +5,7 @@ body {
     align-items: center;
     font-family: Arial, sans-serif;
     background-color: #0000;
-    overflow-x: hidden
+    overflow-x: hidden;
 }
 
 .form-container {
@@ -78,16 +78,18 @@ input:hover {
 
 .checkbox_container {
     margin-bottom: 10px;
+    margin-left: 10px;
+    padding: 5px;
+    border-radius: 10px;
     display: flex;
     align-items: center;
+    border: solid 1px #0000;
+    transition: border 0.3s ease-in-out, background-color 0.3s ease-in-out;
 }
 
-.checkbox_container label {
-    margin-left: 8px;
-}
-
-.checkbox_container>label {
-    background-color:red;
+.checkbox_container:hover {
+    border: solid 1px #0f0;
+    background-color: #060;
 }
 
 #remember_me+label {
@@ -128,19 +130,15 @@ input:hover {
     transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out, color 0.3s ease-in-out;
 }
 
-#remember_me:checked+label:hover:after {
-    color: #000;
-}
-
 #remember_me:checked+label:after {
     opacity: 1;
     transform: scale(1);
 }
 
 .box_and_git {
-    flex-direction:row;
+    flex-direction: row;
     display: flex;
-    justify-content:space-between;
+    justify-content: space-between;
 }
 
 .git_link {
@@ -149,9 +147,11 @@ input:hover {
 }
 
 .git_text {
-    margin-right: 7px;
     color: #0f0;
     transition: color 0.3s ease-in-out;
+    margin-right: 15px;
+    position: relative;
+    top: 5px;
 }
 
 .git_text:hover {
@@ -237,4 +237,54 @@ iframe {
     top: 0;
     left: 0;
     z-index: -1;
+}
+
+.recommend_list {
+    z-index: 1000;
+    position: absolute;
+    background-color: #151515;
+    color: #0f0;
+    border: 1px solid #0f0;
+    border-radius: 10px;
+    padding: 5px;
+    opacity: 0;
+    transform: scale(0);
+    text-align: center;
+    transition: opacity .5s ease-in-out, transform .5s ease-in-out;
+}
+
+.recommend_list_shell {
+    background-color: #030;
+    color: #0f0;
+    border: 1px solid #0f0;
+    border-radius: 10px;
+    padding: 5px;
+    margin: 5px;
+    opacity: 0;
+    transform: scale(0);
+    text-align: center;
+    transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out;
+}
+
+.recommend_list_title {
+    text-align: center;
+    font-size: 15px;
+    color: #0f0;
+}
+
+.recommend_list_subtext {
+    text-align: center;
+    font-size: 10px;
+    color: #0f0;
+}
+
+.recommend_list.show {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.recommend_list_shell.show {
+    opacity: 1;
+    transform: scale(1);
+    cursor: pointer;
 }

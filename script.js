@@ -10,20 +10,23 @@ const ctx = canvas.getContext('2d')
 let width, height
 
 function resize() {
+    canvas.width = 0
+    canvas.height = 0
+
     const body = document.body;
     const html = document.documentElement;
 
     width = Math.max(body.scrollWidth, body.offsetWidth,
-        html.clientWidth, html.scrollWidth, html.offsetWidth, window.innerWidth);
+        html.clientWidth, html.scrollWidth, html.offsetWidth, window.innerWidth)
     height = Math.max(body.scrollHeight, body.offsetHeight,
-        html.clientHeight, html.scrollHeight, html.offsetHeight, window.innerHeight);
+        html.clientHeight, html.scrollHeight, html.offsetHeight, window.innerHeight) + 25
 
     canvas.width = width
     canvas.height = height
     ctx.fillStyle = '#000'
     ctx.fillRect(0, 0, width, height)
 
-    console.log(width,height)
+    console.log(width, height)
 }
 
 new MutationObserver(resize).observe(document, { childList: true, subtree: true });
@@ -51,7 +54,6 @@ function updateSplashes() {
 }
 requestAnimationFrame(updateSplashes)
 
-document.addEventListener('click', e => splashes.push([e.x, e.y, 0, Math.random() * 5 + 5]))
 function updateCheckboxText() {
     document.getElementById('remember_me_text').style.color = remember_me_element.checked ? '#0f0' : '#666'
 }
@@ -102,11 +104,14 @@ function errorifyScanButton(errorMessage) {
     }, 1500)
 }
 
+let hidelist = []
+
 if (localStorage.getItem('remember_me')) {
     remember_me_element.checked = true
     client_id_element.value = localStorage.getItem('client_id')
     client_secret_element.value = localStorage.getItem('client_secret')
     playlist_id_element.value = localStorage.getItem('playlist_id')
+    hidelist = localStorage.getItem('hidelist')
     updateCheckboxText()
 }
 
@@ -134,18 +139,26 @@ function saveInfo() {
 }
 
 document.getElementById('scan_button').addEventListener('click', function () {
-    if (Math.random() > 1.25)
-        errorifyScanButton(['Invalid login', 'Invalid playlist id', 'All input fields must be filled', 'Missing internet connection to spotify servers', 'Too many requests sent, please wait'][Math.floor(Math.random() * 5)])
-    else {
-        addTrack('4uLU6hMCjMI75M1A2tKUQC')
+    if (client_id_element.value == '') {
+        errorifyScanButton('Missing spotify client ID')
+        return
     }
+    if (client_secret_element.value == '') {
+        errorifyScanButton('Missing spotify client secret')
+        return
+    }
+    if (playlist_id_element.value == '') {
+        errorifyScanButton('Missing spotify playlist ID')
+        return
+    }
+    addTrack('4uLU6hMCjMI75M1A2tKUQC', Math.round(Math.random() * 100), [['Never gonna Give You Up', 'Rick Astley', '4uLU6hMCjMI75M1A2tKUQC']])
 })
 
-function addTrack(trackId, track) {
+function addTrack(trackId, trackRating, stats = []) {
     let trackDiv = document.createElement('div')
     trackDiv.classList.add('track_div')
     trackDiv.innerHTML = `
-    <span id="${trackId}"> ${trackId} </span>
+    <span> %${trackRating} match </span>
     <div class="content">
     <button id="track_button" title="If 'remember me' is off the hidelist is reset on page load">Hide</button>
     <iframe src="https://open.spotify.com/embed/track/4uLU6hMCjMI75M1A2tKUQC" width="300" height="80" frameborder="0" allowtransparency="true" allow="encrypted-media"></iframe>
@@ -157,6 +170,11 @@ function addTrack(trackId, track) {
     setTimeout(() => trackDiv.classList.add('activated'), 100)
 
     trackDiv.querySelector('button').addEventListener('click', () => {
+
+        hidelist.push(trackId)
+        if (remember_me_element.checked)
+            localStorage.setItem('hidelist', hidelist)
+
         document.querySelectorAll('.custom-tooltip').forEach(tooltip => {
             tooltip.classList.remove('show')
             setTimeout(() => tooltip.remove(), 500)
@@ -186,22 +204,66 @@ function addTrack(trackId, track) {
             document.getElementById('tracks_div').removeChild(trackDiv)
         }, 2000)
     })
-}
 
-scan_button_element.addEventListener('click', () => {
-    const start = Date.now()
-    const func = () => {
-        splashes.push([
-            Math.random() * canvas.width,
-            Math.random() * canvas.height,
-            0,
-            Math.random() * 5 + 5
-        ])
-        if (Date.now() - start < 1000)
-            setTimeout(func, Math.random() * 250)
+    let enter_handle
+    let leave_handle
+
+    let open = false
+
+    function enter() {
+        clearTimeout(leave_handle)
+        if (open) return
+        tooltip = document.createElement('div')
+        tooltip.className = 'recommend_list'
+        tooltip.textContent = 'Recommended by:'
+        document.body.appendChild(tooltip)
+
+        stats.forEach(stat => {
+            let shell = document.createElement('div')
+            shell.className = 'recommend_list_shell'
+            shell.innerHTML = `
+            <div class="recommend_list_title">${stat[0]}</div>
+            <div class="recommend_list_subtext">${stat[1]}</div>
+            `
+            tooltip.appendChild(shell)
+            shell.addEventListener('click',e=>{
+                window.location.href=`https://open.spotify.com/track/${stat[2]}`
+            })
+        })
+
+        let rect = this.getBoundingClientRect()
+        tooltip.style.bottom = (window.innerHeight - rect.top - window.scrollY + 15) + 'px';
+        tooltip.style.display = 'block'
+
+        tooltip.addEventListener('mouseenter', enter)
+        tooltip.addEventListener('mouseleave', leave)
+
+        open = true
+
+        enter_handle = setTimeout(() => {
+            const children = tooltip.children
+            for (let index = 0; index < children.length; index++) {
+                setTimeout(() => children[index].classList.add('show'), (index + 1) * 100)
+            }
+            tooltip.classList.add('show')
+        }, 100)
     }
-    func()
-})
+    function leave() {
+        leave_handle = setTimeout(() => {
+            clearTimeout(enter_handle)
+            open = false
+            document.querySelectorAll('.recommend_list').forEach(tooltip => {
+                tooltip.classList.remove('show')
+                setTimeout(() => {
+                    tooltip.remove()
+                }, 500)
+            })
+        }, 100)
+    }
+
+    trackDiv.querySelector('span').addEventListener('mouseenter', enter)
+    trackDiv.querySelector('span').addEventListener('mouseleave', leave)
+}
 
 // const axios = require('axios')
 // const qs = require('qs')
