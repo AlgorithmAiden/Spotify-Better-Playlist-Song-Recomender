@@ -108,27 +108,25 @@ function errorifyScanButton(errorMessage) {
     }, 1500)
 }
 
-let hidelist = []
-
-if (localStorage.getItem('remember_me')) {
-    remember_me_element.checked = true
-    client_id_element.value = localStorage.getItem('client_id')
-    client_secret_element.value = localStorage.getItem('client_secret')
-    playlist_id_element.value = localStorage.getItem('playlist_id')
-    hidelist = localStorage.getItem('hidelist') ?? []
-    updateCheckboxText()
-}
-
 remember_me_element.addEventListener('change', () => {
     updateCheckboxText()
     if (remember_me_element.checked) {
         localStorage.setItem('remember_me', true)
         saveInfo()
     }
-    else {
-        localStorage.clear()
-    }
+    else localStorage.clear()
 })
+
+let hidelist = []
+
+if (localStorage.getItem('remember_me')) {
+    remember_me_element.checked = true
+    client_id_element.value = JSON.parse(localStorage.getItem('client_id'))
+    client_secret_element.value = JSON.parse(localStorage.getItem('client_secret'))
+    playlist_id_element.value = JSON.parse(localStorage.getItem('playlist_id'))
+    hidelist = JSON.parse(localStorage.getItem('hidelist')) ?? []
+    updateCheckboxText()
+}
 
 document.getElementById('client_id').addEventListener('change', () => { if (remember_me_element.checked) saveInfo() })
 document.getElementById('client_secret').addEventListener('change', () => { if (remember_me_element.checked) saveInfo() })
@@ -137,9 +135,9 @@ document.getElementById('playlist_id').addEventListener('change', () => { if (re
 document.querySelectorAll('[title]').forEach(element => activateBetterTitles(element))
 
 function saveInfo() {
-    localStorage.setItem('client_id', client_id_element.value)
-    localStorage.setItem('client_secret', client_secret_element.value)
-    localStorage.setItem('playlist_id', playlist_id_element.value)
+    localStorage.setItem('client_id', JSON.stringify(client_id_element.value))
+    localStorage.setItem('client_secret', JSON.stringify(client_secret_element.value))
+    localStorage.setItem('playlist_id', JSON.stringify(playlist_id_element.value))
 }
 
 let tracksToAdd = []
@@ -147,7 +145,6 @@ let tracksToAdd = []
 let scanning = false
 scan_button_element.addEventListener('click', function () {
     if (scanning) return
-    scanning = true
     if (client_id_element.value == '') {
         errorifyScanButton('Missing spotify client ID')
         return
@@ -166,6 +163,7 @@ scan_button_element.addEventListener('click', function () {
         scan_button_element.innerText = `${trail}Scanning${trail}`
         index = (index + 1) % 50
     }, 25)
+    scanning = true
     tracksToAdd = []
     for (let child of document.getElementById('tracks_div').children) {
         child.classList.remove('show')
@@ -173,9 +171,13 @@ scan_button_element.addEventListener('click', function () {
             child.remove()
         }, 2000)
     }
-
     scan(client_id_element.value, client_secret_element.value, playlist_id_element.value).then((response) => {
-        if (response.error) errorifyScanButton(response.error)
+        if (response.error) {
+            clearInterval(handle)
+            scan_button_element.innerText = 'Scan'
+            scanning = false
+            errorifyScanButton(response.error)
+        }
         else {
             clearInterval(handle)
             scan_button_element.innerText = 'Scan'
@@ -216,7 +218,7 @@ async function addTrack(trackId, trackSameness, recommended) {
         if (!hidelist.includes(trackId)) {
             hidelist.push(trackId)
             if (remember_me_element.checked)
-                localStorage.setItem('hidelist', hidelist)
+                localStorage.setItem('hidelist', JSON.stringify(hidelist))
         }
 
         shell.classList.remove('show')
@@ -321,6 +323,7 @@ const scan = (() => {
             });
 
             const data = await response.json()
+            if (data.access_token == undefined) return { error: 'Invalid login' }
             return data.access_token
         } catch (error) {
             return { error: 'Bad connection' }
@@ -394,7 +397,7 @@ const scan = (() => {
         }
         let tracks = {}
         if (remember_me_element.checked)
-            tracks = localStorage.getItem('tracks') ?? {}
+            tracks = JSON.parse(localStorage.getItem('tracks')) ?? {}
         for (const result of results) {
             for (const track of result.recommended) {
                 if (tracks[track.id] == undefined) {
@@ -411,7 +414,8 @@ const scan = (() => {
             }
         }
         if (remember_me_element.checked)
-            localStorage.setItem('tracks', tracks)
+            localStorage.setItem('tracks', JSON.stringify(tracks))
+        console.log(tracks)
         let sortedTracks = []
         for (const trackId in tracks) {
             sortedTracks.push({ id: trackId, recommended: tracks[trackId].recommended, sameness: Math.round(tracks[trackId].sameness / playlistTracks.length * 100) })
