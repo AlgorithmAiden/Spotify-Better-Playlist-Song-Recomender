@@ -25,8 +25,6 @@ function resize() {
     canvas.height = height
     ctx.fillStyle = '#000'
     ctx.fillRect(0, 0, width, height)
-
-    console.log(width, height)
 }
 
 document.addEventListener('scroll', resize)
@@ -38,7 +36,8 @@ resize()
 let splashes = []
 function updateSplashes() {
     function clamp(i) { return Math.min(1, Math.max(0, i)) }
-    splashes.forEach(splash => {
+    splashes.forEach((splash, index) => {
+        if (splash == undefined) return
         const grad = ctx.createRadialGradient(splash[0], splash[1], 0, splash[0], splash[1], Math.max(canvas.width, canvas.height))
         grad.addColorStop(clamp(splash[2] / 250 - .06), '#0000')
         grad.addColorStop(clamp(splash[2] / 250 - .05), '#000')
@@ -48,11 +47,16 @@ function updateSplashes() {
         ctx.fillStyle = grad
         ctx.fillRect(0, 0, canvas.width, canvas.height)
         splash[2]++
-        if (splash[2] > 500) splash = undefined
+        if (255 - splash[2] * splash[3] <= -255) splashes = splashes.filter((_, subIndex) => subIndex != index)
     })
-    requestAnimationFrame(updateSplashes)
+    if (splashes.length > 0) requestAnimationFrame(updateSplashes)
 }
-requestAnimationFrame(updateSplashes)
+
+function splash() {
+    splashes.push([Math.random() * window.innerWidth, Math.random() * (window.innerHeight + window.scrollY), 0, Math.random() * 5 + 5])
+    if (splashes.length == 1) requestAnimationFrame(updateSplashes)
+}
+splash()
 
 function updateCheckboxText() {
     document.getElementById('remember_me_text').style.color = remember_me_element.checked ? '#0f0' : '#666'
@@ -111,8 +115,7 @@ if (localStorage.getItem('remember_me')) {
     client_id_element.value = localStorage.getItem('client_id')
     client_secret_element.value = localStorage.getItem('client_secret')
     playlist_id_element.value = localStorage.getItem('playlist_id')
-    hidelist = localStorage.getItem('hidelist')
-    if (typeof hidelist != 'object') hidelist = []
+    hidelist = localStorage.getItem('hidelist') ?? []
     updateCheckboxText()
 }
 
@@ -139,7 +142,12 @@ function saveInfo() {
     localStorage.setItem('playlist_id', playlist_id_element.value)
 }
 
-document.getElementById('scan_button').addEventListener('click', function () {
+let tracksToAdd = []
+
+let scanning = false
+scan_button_element.addEventListener('click', function () {
+    if (scanning) return
+    scanning = true
     if (client_id_element.value == '') {
         errorifyScanButton('Missing spotify client ID')
         return
@@ -152,18 +160,49 @@ document.getElementById('scan_button').addEventListener('click', function () {
         errorifyScanButton('Missing spotify playlist ID')
         return
     }
-    addTrack('4uLU6hMCjMI75M1A2tKUQC', Math.round(Math.random() * 100), [['Never gonna Give You Up', 'Rick Astley', '4uLU6hMCjMI75M1A2tKUQC'], ['Never gonna Give You Up', 'Rick Astley', '4uLU6hMCjMI75M1A2tKUQC'], ['Never gonna Give You Up', 'Rick Astley', '4uLU6hMCjMI75M1A2tKUQC'], ['Never gonna Give You Up', 'Rick Astley', '4uLU6hMCjMI75M1A2tKUQC'], ['Never gonna Give You Up', 'Rick Astley', '4uLU6hMCjMI75M1A2tKUQC']])
+    let index = 25
+    const handle = setInterval(() => {
+        let trail = Array(Math.abs(index - 25)).fill('-').join('')
+        scan_button_element.innerText = `${trail}Scanning${trail}`
+        index = (index + 1) % 50
+    }, 25)
+    tracksToAdd = []
+    for (let child of document.getElementById('tracks_div').children) {
+        child.classList.remove('show')
+        setTimeout(() => {
+            child.remove()
+        }, 2000)
+    }
+
+    scan(client_id_element.value, client_secret_element.value, playlist_id_element.value).then((response) => {
+        if (response.error) errorifyScanButton(response.error)
+        else {
+            clearInterval(handle)
+            scan_button_element.innerText = 'Scan'
+            scanning = false
+            if (response.length > 25) {
+                tracksToAdd = response.splice(25)
+            }
+            function addLoop(index) {
+                const track = response[index]
+                addTrack(track.id, track.sameness, track.recommended).then(() => {
+                    if (index + 1 < Math.min(response.length, 25)) addLoop(index + 1)
+                })
+            }
+            addLoop(0)
+        }
+    })
 })
 
-function addTrack(trackId, trackRating, stats = []) {
+async function addTrack(trackId, trackSameness, recommended) {
     let shell = document.createElement('div')
     shell.classList.add('shell')
     shell.innerHTML = `
     <div class=track_div>
-        <span> %${trackRating} match </span>
+        <span> %${trackSameness} match </span>
         <div class="content">
             <button id="track_button" title="If 'remember me' is off the hidelist is reset on page load">Hide</button>
-            <iframe src="https://open.spotify.com/embed/track/4uLU6hMCjMI75M1A2tKUQC" width="300" height="80" frameborder="0" allowtransparency="true" allow="encrypted-media"></iframe>
+            <iframe src="https://open.spotify.com/embed/track/${trackId}" width="300" height="80" frameborder="0" allowtransparency="true" allow="encrypted-media"></iframe>
         </div>
     </div>
     `
@@ -176,13 +215,19 @@ function addTrack(trackId, trackRating, stats = []) {
 
         if (!hidelist.includes(trackId)) {
             hidelist.push(trackId)
-            console.log(hidelist)
             if (remember_me_element.checked)
                 localStorage.setItem('hidelist', hidelist)
         }
 
         shell.classList.remove('show')
-        setTimeout(() => shell.remove(), 2000)
+        setTimeout(() => {
+            shell.remove()
+        }, 2000)
+
+        if (tracksToAdd.length > 0) {
+            const track = tracksToAdd.shift()
+            addTrack(track.id, track.sameness, track.recommended)
+        }
     })
 
     let enter_handle
@@ -198,24 +243,22 @@ function addTrack(trackId, trackRating, stats = []) {
         tooltip.textContent = 'Recommended by:'
         document.body.appendChild(tooltip)
 
-        stats.forEach(stat => {
+        recommended.forEach(track => {
             let shell = document.createElement('div')
             shell.className = 'recommend_list_shell'
             shell.innerHTML = `
-            <div class="recommend_list_title">${stat[0]}</div>
-            <div class="recommend_list_subtext">${stat[1]}</div>
+            <div class="recommend_list_title">${track.name}</div>
+            <div class="recommend_list_subtext">${track.author}</div>
             `
             tooltip.appendChild(shell)
             shell.addEventListener('click', e => {
-                window.open(`https://open.spotify.com/track/${stat[2]}`, '_blank')
+                window.open(`https://open.spotify.com/track/${track.id}`, '_blank')
             })
         })
 
         let rect = this.getBoundingClientRect()
         tooltip.style.top = rect.bottom + window.scrollY + 15 + 'px'
         tooltip.style.display = 'block'
-
-        console.log(tooltip.getBoundingClientRect().top, window.scrollY)
 
         tooltip.addEventListener('mouseenter', enter)
         tooltip.addEventListener('mouseleave', leave)
@@ -245,110 +288,136 @@ function addTrack(trackId, trackRating, stats = []) {
 
     shell.querySelector('span').addEventListener('mouseenter', enter)
     shell.querySelector('span').addEventListener('mouseleave', leave)
+
+
+    const iframe = shell.querySelector('iframe')
+
+    await new Promise((resolve, reject) => {
+        iframe.onload = () => resolve()
+        iframe.onerror = () => reject(console.log('Iframe failed to load'))
+    })
+
+    return
 }
 
-// const
+const scan = (() => {
+    async function getToken(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET) {
+        const url = 'https://accounts.spotify.com/api/token'
+        const token = btoa(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`)
 
-// const axios = require('axios')
-// const qs = require('qs')
+        const params = new URLSearchParams()
+        params.append('grant_type', 'client_credentials')
 
-// const SPOTIFY_CLIENT_ID = ''
-// const SPOTIFY_CLIENT_SECRET = ''
-// const PLAYLIST_ID = ''
+        const headers = new Headers({
+            'Authorization': `Basic ${token}`,
+            'Content-Type': 'application/x-www-form-urlencoded'
+        });
 
-// async function getSpotifyAccessToken() {
-//     const credentials = `${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`
-//     const token = Buffer.from(credentials).toString('base64')
-//     try {
-//         const response = await axios.post('https://accounts.spotify.com/api/token', qs.stringify({ grant_type: 'client_credentials' }), {
-//             headers: {
-//                 'Authorization': `Basic ${token}`,
-//                 'Content-Type': 'application/x-www-form-urlencoded'
-//             },
-//         })
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                body: params,
+                headers: headers
+            });
 
-//         return response.data.access_token
-//     } catch (error) {
-//         console.error('Error in getting access token:', error)
-//         return null
-//     }
-// }
+            const data = await response.json()
+            return data.access_token
+        } catch (error) {
+            return { error: 'Bad connection' }
+        }
+    }
+    async function getPlaylistSongs(playlistId, token) {
+        try {
+            const response = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
 
-// async function getRecommendations(trackId, accessToken) {
-//     try {
-//         const response = await axios.get('https://api.spotify.com/v1/recommendations', {
-//             headers: { 'Authorization': `Bearer ${accessToken}` },
-//             params: {
-//                 seed_tracks: trackId,
-//                 limit: 100
-//             }
-//         })
+            if (!response.ok) {
+                return { error: 'Network response was not ok' }
+            }
 
-//         return response.data.tracks
-//     } catch (error) {
-//         if (error.response.statusText == 'Too Many Requests') {
-//             const wait = parseInt(error.response.headers['retry-after']) + 1000
-//             console.log(`Too may requests, waiting ${wait} seconds`)
-//             await new Promise(r => setTimeout(r, wait))
-//             return getRecommendations(trackId, accessToken * 1000)
-//         }
-//         console.error('Error in getting recommendations:', error)
-//         return []
-//     }
-// }
+            const data = await response.json()
+            return data.items.map(item => item.track)
+        } catch (error) {
+            return { error: 'Error in getting tracks from the playlist' }
+        }
+    }
+    async function getRecommendations(trackId, token) {
+        const url = new URL('https://api.spotify.com/v1/recommendations')
+        url.search = new URLSearchParams({
+            seed_tracks: trackId,
+            limit: 100
+        })
 
-// async function getPlaylistSongs(playlistId, accessToken) {
-//     try {
-//         const response = await axios.get(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, {
-//             headers: { 'Authorization': `Bearer ${accessToken}` }
-//         });
+        try {
+            const response = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
 
-//         return response.data.items.map(item => item.track); // Extracting track information from each item
-//     } catch (error) {
-//         console.error('Error in getting tracks from playlist:', error);
-//         return [];
-//     }
-// }
+            if (!response.ok) {
+                if (response.status === 429) { // Too Many Requests
+                    const wait = parseInt(response.headers.get('Retry-After')) * 1000 + 1000
+                    return { error: `Too many requests, waiting ${Math.ceil(wait / 1000)} seconds` }
+                }
+                return { error: `HTTP error! status: ${response.status}` }
+            }
 
-// (async () => {
-//     const accessToken = await getSpotifyAccessToken()
-//     const tracks = await getPlaylistSongs(PLAYLIST_ID, accessToken)
-//     let allRecommendations = {}
-//     console.log('Getting recommended songs')
-//     let getRecommendationPromises = []
-//     let progress = 0
-//     for (let index = 0; index < tracks.length; index++) {
-//         getRecommendationPromises.push(new Promise(async r => {
-//             const track = tracks[index]
-//             const recommendations = await getRecommendations(track.id, accessToken)
-//             for (let subIndex = 0; subIndex < recommendations.length; subIndex++) {
-//                 const recommendation = recommendations[subIndex]
-//                 if (allRecommendations[recommendation.name] != undefined)
-//                     allRecommendations[recommendation.name].sameness++
-//                 else
-//                     allRecommendations[recommendation.name] = {
-//                         ...recommendation,
-//                         sameness: 1
-//                     }
-//             }
-//             progress++
-//             console.log(`%${Math.round(progress / tracks.length * 100)}`)
-//             r()
-//         }))
-//     }
-//     await Promise.all(getRecommendationPromises)
-//     let sortedSongs = []
-//     for (const name in allRecommendations) {
-//         const song = allRecommendations[name]
-//         if (!(tracks.map(track => track.id)).includes(song.id))
-//             sortedSongs.push(song)
-//     }
-//     const ignore = fs.readFileSync('ignore.txt', 'utf8').split('\n').map(item => item.split('\r')[0])
-//     sortedSongs = sortedSongs.filter(song => !ignore.includes(song.name))
-//     sortedSongs = sortedSongs.sort((a, b) => b.sameness - a.sameness)
-//     console.log(`Recommending ${sortedSongs.length} songs just for you!`)
-//     console.log(`Give ${sortedSongs[0].name} a listen at ${sortedSongs[0].external_urls.spotify}`)
-//     sortedSongs = sortedSongs.map(song => `${song.name} is a %${Math.round(song.sameness / tracks.length * 100)} match, you can find it at ${song.external_urls.spotify}`)
-//     fs.writeFileSync('recommended_songs', sortedSongs.join('\r'), 'utf8')
-//     console.log('Done')
-// })()
+            const data = await response.json()
+            return data.tracks
+        } catch (error) {
+            return { error: 'Error in getting recommendations' }
+        }
+    }
+    return async (SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, PLAYLIST_ID) => {
+
+        const token = await getToken(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET)
+        if (token.error) return token
+        const playlistTracks = await getPlaylistSongs(PLAYLIST_ID, token)
+        if (playlistTracks.error) return playlistTracks
+        let trackPromises = []
+        let results = []
+        for (const track of playlistTracks) {
+            trackPromises.push(new Promise(async (resolve, reject) => {
+                const recommended = await getRecommendations(track.id, token)
+                if (recommended.error) {
+                    reject(recommended.error)
+                }
+                results.push({ track, recommended })
+                splash()
+                resolve()
+            }))
+        }
+        try {
+            await Promise.all(trackPromises)
+        } catch (error) {
+            return { error }
+        }
+        let tracks = {}
+        if (remember_me_element.checked)
+            tracks = localStorage.getItem('tracks') ?? {}
+        for (const result of results) {
+            for (const track of result.recommended) {
+                if (tracks[track.id] == undefined) {
+                    tracks[track.id] = {
+                        sameness: 1,
+                        recommended: [
+                            { name: result.track.name, author: result.track.artists[0].name, id: result.track.id }
+                        ]
+                    }
+                } else {
+                    tracks[track.id].sameness++
+                    tracks[track.id].recommended.push({ name: result.track.name, author: result.track.artists[0].name, id: result.track.id })
+                }
+            }
+        }
+        if (remember_me_element.checked)
+            localStorage.setItem('tracks', tracks)
+        let sortedTracks = []
+        for (const trackId in tracks) {
+            sortedTracks.push({ id: trackId, recommended: tracks[trackId].recommended, sameness: Math.round(tracks[trackId].sameness / playlistTracks.length * 100) })
+        }
+        sortedTracks = sortedTracks.sort((a, b) => b.sameness - a.sameness)
+        sortedTracks = sortedTracks.filter(track => !hidelist.includes(track.id))
+        return sortedTracks
+    }
+})()
