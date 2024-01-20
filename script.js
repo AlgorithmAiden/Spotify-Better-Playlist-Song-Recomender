@@ -358,7 +358,7 @@ const scan = (() => {
             })
 
             if (!response.ok) {
-                if (response.status === 429) { // Too Many Requests
+                if (response.status === 429) {
                     const wait = parseInt(response.headers.get('Retry-After')) * 1000 + 1000
                     return { error: `Too many requests, waiting ${Math.ceil(wait / 1000)} seconds` }
                 }
@@ -415,13 +415,13 @@ const scan = (() => {
         }
         if (remember_me_element.checked)
             localStorage.setItem('tracks', JSON.stringify(tracks))
-        console.log(tracks)
         let sortedTracks = []
         for (const trackId in tracks) {
             sortedTracks.push({ id: trackId, recommended: tracks[trackId].recommended, sameness: Math.round(tracks[trackId].sameness / playlistTracks.length * 100) })
         }
         sortedTracks = sortedTracks.sort((a, b) => b.sameness - a.sameness)
         sortedTracks = sortedTracks.filter(track => !hidelist.includes(track.id))
+        sortedTracks = sortedTracks.filter(track => !playlistTracks.map(subTrack => subTrack.id).includes(track.id))
         return sortedTracks
     }
 })()
