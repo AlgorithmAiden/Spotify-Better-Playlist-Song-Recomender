@@ -56,7 +56,6 @@ function splash() {
     splashes.push([Math.random() * window.innerWidth, Math.random() * (window.innerHeight + window.scrollY), 0, Math.random() * 5 + 5])
     if (splashes.length == 1) requestAnimationFrame(updateSplashes)
 }
-splash()
 
 function updateCheckboxText() {
     document.getElementById('remember_me_text').style.color = remember_me_element.checked ? '#0f0' : '#666'
