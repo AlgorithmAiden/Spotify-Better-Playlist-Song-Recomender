@@ -165,35 +165,62 @@ scan_button_element.addEventListener('click', function () {
     }, 25)
     scanning = true
     tracksToAdd = []
-    for (let child of document.getElementById('tracks_div').children) {
-        child.classList.remove('show')
-        setTimeout(() => {
-            child.remove()
-        }, 2000)
-    }
-    scan(client_id_element.value, client_secret_element.value, playlist_id_element.value).then((response) => {
-        if (response.error) {
-            clearInterval(handle)
-            scan_button_element.innerText = 'Scan'
-            scanning = false
-            errorifyScanButton(response.error)
+    if (document.getElementById('tracks_div').children.length > 0) {
+        for (let child of document.getElementById('tracks_div').children) {
+            child.classList.remove('show')
+            setTimeout(() => {
+                child.remove()
+            }, 2000)
         }
-        else {
-            clearInterval(handle)
-            scan_button_element.innerText = 'Scan'
-            scanning = false
-            if (response.length > 25) {
-                tracksToAdd = response.splice(25)
+        setTimeout(() =>
+            scan(client_id_element.value, client_secret_element.value, playlist_id_element.value).then((response) => {
+                if (response.error) {
+                    clearInterval(handle)
+                    scan_button_element.innerText = 'Scan'
+                    scanning = false
+                    errorifyScanButton(response.error)
+                }
+                else {
+                    clearInterval(handle)
+                    scan_button_element.innerText = 'Scan'
+                    scanning = false
+                    if (response.length > 25) {
+                        tracksToAdd = response.splice(25)
+                    }
+                    function addLoop(index) {
+                        const track = response[index]
+                        addTrack(track.id, track.sameness, track.recommended).then(() => {
+                            if (index + 1 < Math.min(response.length, 25)) addLoop(index + 1)
+                        })
+                    }
+                    addLoop(0)
+                }
+            })
+            , 2500)
+    } else
+        scan(client_id_element.value, client_secret_element.value, playlist_id_element.value).then((response) => {
+            if (response.error) {
+                clearInterval(handle)
+                scan_button_element.innerText = 'Scan'
+                scanning = false
+                errorifyScanButton(response.error)
             }
-            function addLoop(index) {
-                const track = response[index]
-                addTrack(track.id, track.sameness, track.recommended).then(() => {
-                    if (index + 1 < Math.min(response.length, 25)) addLoop(index + 1)
-                })
+            else {
+                clearInterval(handle)
+                scan_button_element.innerText = 'Scan'
+                scanning = false
+                if (response.length > 25) {
+                    tracksToAdd = response.splice(25)
+                }
+                function addLoop(index) {
+                    const track = response[index]
+                    addTrack(track.id, track.sameness, track.recommended).then(() => {
+                        if (index + 1 < Math.min(response.length, 25)) addLoop(index + 1)
+                    })
+                }
+                addLoop(0)
             }
-            addLoop(0)
-        }
-    })
+        })
 })
 
 async function addTrack(trackId, trackSameness, recommended) {
@@ -407,21 +434,21 @@ const scan = (() => {
                             { name: result.track.name, author: result.track.artists[0].name, id: result.track.id }
                         ]
                     }
-                } else if (!tracks[track.id].recommended.map(item => item.id).includes(track.id)) {
+                } else if (!tracks[track.id].recommended.map(item => item.id).includes(result.track.id)) {
                     tracks[track.id].sameness++
-                tracks[track.id].recommended.push({ name: result.track.name, author: result.track.artists[0].name, id: result.track.id })
+                    tracks[track.id].recommended.push({ name: result.track.name, author: result.track.artists[0].name, id: result.track.id })
+                }
             }
         }
+        if (remember_me_element.checked)
+            localStorage.setItem('tracks', JSON.stringify(tracks))
+        let sortedTracks = []
+        for (const trackId in tracks) {
+            sortedTracks.push({ id: trackId, recommended: tracks[trackId].recommended, sameness: Math.round(tracks[trackId].sameness / playlistTracks.length * 100) })
+        }
+        sortedTracks = sortedTracks.sort((a, b) => b.sameness - a.sameness)
+        sortedTracks = sortedTracks.filter(track => !hidelist.includes(track.id))
+        sortedTracks = sortedTracks.filter(track => !playlistTracks.map(subTrack => subTrack.id).includes(track.id))
+        return sortedTracks
     }
-    if (remember_me_element.checked)
-        localStorage.setItem('tracks', JSON.stringify(tracks))
-    let sortedTracks = []
-    for (const trackId in tracks) {
-        sortedTracks.push({ id: trackId, recommended: tracks[trackId].recommended, sameness: Math.round(tracks[trackId].sameness / playlistTracks.length * 100) })
-    }
-    sortedTracks = sortedTracks.sort((a, b) => b.sameness - a.sameness)
-    sortedTracks = sortedTracks.filter(track => !hidelist.includes(track.id))
-    sortedTracks = sortedTracks.filter(track => !playlistTracks.map(subTrack => subTrack.id).includes(track.id))
-    return sortedTracks
-}
-}) ()
+})()
