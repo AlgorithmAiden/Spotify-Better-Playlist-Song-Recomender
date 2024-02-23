@@ -108,12 +108,17 @@ function errorifyScanButton(errorMessage) {
 }
 
 remember_me_element.addEventListener('change', () => {
-    updateCheckboxText()
-    if (remember_me_element.checked) {
-        localStorage.setItem('remember_me', true)
-        saveInfo()
+    if ((!remember_me_element.checked) && !confirm('Are you sure you wish to clear all memory? This will permanently forget all playlist blacklists.')) {
+        remember_me_element.checked = true
     }
-    else localStorage.clear()
+    else {
+        updateCheckboxText()
+        if (remember_me_element.checked) {
+            localStorage.setItem('remember_me', true)
+            saveInfo()
+        }
+        else localStorage.clear()
+    }
 })
 
 let hidelist = []
